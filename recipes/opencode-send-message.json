@@ -1,0 +1,25 @@
+{
+  "id": "opencode.send-message.v1",
+  "app": "opencode.exe",
+  "app_aliases": ["OpenCode"],
+  "compatibility": { "versions": ["unknown"] },
+  "objective": "enviar mensagem",
+  "objective_aliases": ["send message", "mandar mensagem"],
+  "preconditions": ["composer visível", "destino confirmado", "sessão aberta"],
+  "anchors": ["Edit do composer", "destino visível na sessão"],
+  "steps": [
+    { "action": "fill", "target": "composer", "value": "mensagem fornecida pelo usuário" },
+    { "action": "key", "target": "composer", "value": "enter" }
+  ],
+  "postconditions": ["mensagem publicada no destino e observada na conversa"],
+  "provenance": {
+    "learning_eligible": false,
+    "evidence": [
+      { "kind": "observed", "source": "work/retomada-astra-medium-2026-09-07.md:13", "claim": "texto foi enviado após entrada literal e Enter" },
+      { "kind": "declared", "source": "work/retomada-astra-medium-2026-09-07.md:13", "claim": "relato não fornece recibo independente do destino" }
+    ]
+  },
+  "status": "draft",
+  "validity": { "reviewed_at": "2026-09-08", "expires_at": null },
+  "invalidation": "sem pós-condição independente e sem versão do aplicativo confirmada"
+}

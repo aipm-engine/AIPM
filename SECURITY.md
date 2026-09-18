@@ -7,11 +7,14 @@ government). This document states exactly what it does and does not do.
 
 - **Loopback only.** The backend listens on `127.0.0.1:9147` and rejects requests whose `Host` header
   is not local. It is never bound to `0.0.0.0` and is not reachable from the network.
-- **Read-only by default.** All perception endpoints are GET. The action tier (`ui_invoke`,
-  `ui_set_value`, `focus_window`) is **off** until the user enables it *and* allow-lists each app.
+- **Read-only by default.** All perception endpoints are GET. The action tier (`ui_act`,
+  `ui_invoke`, `ui_set_value`, `ui_select_option`, `ui_send_keys`, `ui_drag`, `focus_window`, plus
+  `ui_capture`) is **off** until the user enables it *and* allow-lists each app.
   Denied actions return `action_denied` with guidance — they never silently execute.
-- **No pixels leave the machine.** AIPM reads structured UI Automation state, not screenshots. There is
-  no image capture path at all.
+- **No pixels leave the machine.** AIPM reads structured UI Automation state, not screenshots. The
+  only image path is `POST /ui/capture`: it crops one element's rect on request, refuses without a
+  target (it never photographs the window or the screen by omission), sits behind the same opt-in
+  action tier, and never leaves loopback.
 - **Metadata only in logs.** The audit log records *which* endpoint an agent called and the target
   element — never screen content and never the typed value. Secrets (`api_key=`) and user-typed values
   (`value=`) are masked before anything is written to the in-memory ring buffer or persisted to disk.

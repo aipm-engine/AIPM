@@ -1,0 +1,27 @@
+{
+  "id": "notepad.write-save.fixture.v1",
+  "app": "notepad.exe",
+  "app_aliases": ["Notepad", "Bloco de Notas"],
+  "compatibility": { "versions": ["unknown"] },
+  "objective": "escrever e salvar texto",
+  "objective_aliases": ["write and save text", "salvar fixture"],
+  "preconditions": ["fixture revisada", "caminho de saída conhecido", "janela do Notepad aberta"],
+  "anchors": ["editor de texto", "diálogo padrão de salvamento"],
+  "steps": [
+    { "action": "fill", "target": "editor", "value": "conteúdo da fixture" },
+    { "action": "key", "target": "editor", "value": "ctrl+s" },
+    { "action": "verify", "target": "arquivo", "value": "bytes exatos da fixture" }
+  ],
+  "postconditions": ["arquivo existe", "bytes do arquivo coincidem exatamente com a fixture"],
+  "provenance": {
+    "learning_eligible": false,
+    "evidence": [
+      { "kind": "observed", "source": "work/benchmark-astra-medium/inventario.md:22", "claim": "há histórico de arquivo de 95 B salvo por um braço" },
+      { "kind": "negative-test", "source": "work/benchmark-astra-medium/inventario.md:16", "claim": "outras tentativas escreveram mas não produziram arquivo" },
+      { "kind": "declared", "source": "work/ESTUDO-para-revisao.md:50", "claim": "a régua exige leitura de volta" }
+    ]
+  },
+  "status": "draft",
+  "validity": { "reviewed_at": "2026-09-08", "expires_at": null },
+  "invalidation": "fixture, versão e repetição independente não estão anexadas ao catálogo"
+}

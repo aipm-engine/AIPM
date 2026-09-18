@@ -1,0 +1,40 @@
+{
+  "id": "notepad.classic-save-as.fixture.v1",
+  "app": "notepad.exe",
+  "app_aliases": ["Notepad", "Bloco de Notas"],
+  "compatibility": {"versions": ["10.0.19041.4522"], "layouts": ["classic-pt-BR"]},
+  "objective": "salvar fixture Notepad pelo menu",
+  "objective_aliases": ["save Notepad fixture using menu"],
+  "preconditions": ["novo documento vazio", "Notepad em primeiro plano", "saida local conhecida e inexistente", "fixture de 98 bytes", "UTF-8 sem BOM e CRLF"],
+  "anchors": ["Document: Editor de Texto", "MenuItem: Arquivo", "MenuItem: Salvar Como...", "janela Salvar como: Edit Nome: e Button Salvar"],
+  "steps": [
+    {"action": "observe", "target": "nova janela notepad.exe", "check": "documento vazio e versao/layout correspondem"},
+    {"action": "fill", "target": "Document Editor de Texto", "value": "AIPM receita verificada 2026-09-09\nORB VERDE | ANEL ROXO\nTeste de arquivo salvo pelo aplicativo.", "mechanism_observed": "physical after unsupported UIA value pattern"},
+    {"action": "observe", "target": "documento", "check": "texto completo, nao apenas prefixo; envio de teclas pode aplicar depois do recibo"},
+    {"action": "click", "target": "MenuItem Arquivo", "mechanism_observed": "physical"},
+    {"action": "observe", "target": "menu aberto", "check": "reobservar indices e localizar Salvar Como..."},
+    {"action": "click", "target": "MenuItem Salvar Como...", "mechanism_observed": "uia"},
+    {"action": "observe", "target": "janela Salvar como do mesmo PID", "check": "campo Edit Nome: unico e Button Salvar"},
+    {"action": "fill", "target": "Edit Nome:", "value_parameter": "absolute_output_path", "mechanism_observed": "uia"},
+    {"action": "click", "target": "Button Salvar", "mechanism_observed": "uia"},
+    {"action": "verify", "target": "arquivo local", "check": "98 bytes exatos e SHA-256 esperado; dialogo fechado e titulo sem asterisco"}
+  ],
+  "postconditions": ["arquivo tem 98 bytes", "SHA-256 2685a52acd8aa6dda5f4d611b70033efe9a3922695358abd00e3f54aa809b9c9", "dialogo de salvamento fechado e titulo sem asterisco"],
+  "provenance": {
+    "learning_eligible": true,
+    "evidence": [{
+      "kind": "observed",
+      "source": "work/agent-bridge/notepad-recipe-ui-evidence.json",
+      "claim": "Operacao observada em nova janela Notepad pelo AIPM instalado; escrita e menu fisicos, salvamento por UIA; releitura do texto inteiro antes de salvar.",
+      "preconditions": ["novo documento vazio", "Notepad em primeiro plano", "saida local conhecida e inexistente", "fixture de 98 bytes", "UTF-8 sem BOM e CRLF"]
+    }, {
+      "kind": "observed",
+      "source": "work/agent-bridge/notepad-recipe-file-evidence.json",
+      "claim": "Leitura independente do arquivo salvo pelo aplicativo confirmou bytes e SHA-256 esperados; nenhum script escreveu o arquivo de texto."
+    }]
+  },
+  "validation": {"scope": "controlled_fixture_only", "trials": 1, "passed": 1, "wilson_95": [0.20655, 1.0], "general_reliability_established": false, "new_core_target_refs_tested": false},
+  "status": "verified",
+  "validity": {"reviewed_at": "2026-09-09", "expires_at": "2026-10-09"},
+  "invalidation": "Outra versao/layout/fixture, alvo ambiguo, arquivo preexistente ou texto parcial exigem nova observacao e validacao. Uma amostra nao comprova confiabilidade geral."
+}

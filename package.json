@@ -26,6 +26,10 @@
   "files": [
     "server.js",
     "version.js",
+    "easy-tools.js",
+    "easy-recipes.js",
+    "recipes/*.json",
+    "capabilities.js",
     "README.md"
   ],
   "mcpName": "io.github.agorapassadoagora-debug/aipm"

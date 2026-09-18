@@ -1,7 +1,8 @@
 # Habilita o botão "Sponsor" no topo do repositório.
 # A linha `github:` só renderiza depois que você concluir o cadastro em
 # https://github.com/sponsors (exige conta bancária/identidade — passo seu).
-# `custom:` mostra links extras imediatamente (loja/landing).
+# `custom:` mostraria links extras imediatamente (loja/landing) — removido em
+# 18/09/2026 junto com o dominio, que saiu do ar. Link morto num repo que vende
+# confianca e pior que link nenhum: dominio expirado pode ser registrado por
+# outra pessoa, e a pagina que aparece passa a falar em nome do projeto.
 github: [agorapassadoagora-debug]
-custom:
-  - "https://promoflix.site"

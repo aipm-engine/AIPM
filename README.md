@@ -2,7 +2,7 @@
 
 **Structured Windows state for AI agents — no screenshots.**
 
-This MCP server exposes the [AI Process Manager](https://github.com/agorapassadoagora-debug/AIPM) local HTTP API as tools for Claude Desktop, Cursor, and any MCP client. Instead of capturing pixels (~2,765 tokens per 1080p screenshot), agents read **JSON and text** (~15–150 tokens per query) from processes, windows, consoles, and UI Automation trees.
+This MCP server exposes the [AI Process Manager](https://github.com/aipm-engine/AIPM) local HTTP API as tools for Claude Desktop, Cursor, and any MCP client. Instead of capturing pixels (~2,765 tokens per 1080p screenshot), agents read **JSON and text** (~15–150 tokens per query) from processes, windows, consoles, and UI Automation trees.
 
 > **Requires:** AIProcessManager.exe running on Windows (system tray). Node.js ≥ 14. Zero npm dependencies.
 
@@ -18,7 +18,7 @@ Computer-use agents often "look" at the desktop via screenshots. That is slow (3
 | What's the console output? | screenshot + OCR | `read_window` → ~30 tokens |
 | Did the export finish? | poll + screenshots | `wait_for(file_stable=...)` → one call |
 
-Measured on a real machine: **~94–98% fewer perception tokens per action** vs screenshots.
+**~94–98% fewer perception tokens per action** vs screenshots (2,765 → ~60 tokens per query; the two inputs are the `assumptions` block of `GET /analytics/summary`, not a benchmark).
 
 ## Quick start
 
@@ -44,17 +44,33 @@ Cursor and other stdio MCP clients take the same `command` / `args` pair. Option
 `AIPM_API` overrides the API base URL (default: read from
 `%LOCALAPPDATA%\AIProcessManager\endpoint.txt`, else `http://127.0.0.1:9147`).
 
+Optional env var `AIPM_AGENT_NAME` names **this agent** in the API's activity log (default `mcp`).
+Every request is sent with `User-Agent: AIPM-Agent/<name> (<client>) mcp:<client>`, and the API
+extracts `<name>` into the `agent` field of `/audit`, `/activity` and `/notes`. Use it when several
+agents share one MCP client, so `GET /activity` can tell them apart:
+
+```json
+"env": { "AIPM_AGENT_NAME": "revisor" }
+```
+
+The name is normalized to `[a-z0-9._-]`, max 40 chars. **It is an identity the caller declares about
+itself — observability and coordination only, never authorization.** Anyone can write any name here;
+nothing in the product grants or denies permission based on it. The only barrier remains the
+deny-by-default action allowlist, which is per **app**.
+
 ### 3. Restart the MCP client
 Tools appear as `ai-process-manager`. Call `health_check` first.
 
-## Tools (20)
+## Tools (28)
 
-Read tools are annotated `readOnlyHint: true` — clients may auto-approve them. Action tools
-are `readOnlyHint: false` and refuse to run unless the user opts in (see [Privacy](#privacy)).
+The 15 perception tools and the two UI probes are annotated `readOnlyHint: true` — clients may
+auto-approve them. The seven UI actions are `readOnlyHint: false` and refuse to run unless the user
+opts in (see [Privacy](#privacy)).
 
 | Tool | Title | Endpoint |
 |---|---|---|
-| `health_check` | Check AI Process Manager status | `GET /` |
+| `aipm_ja_faz` | Does the AIPM already do this? Ask before writing code or reaching for the shell | `GET /?q=` |
+| `health_check` | Status + which action family to use + real-input arm state | `GET /` + `GET /forgepilot/status` |
 | `check_process` | Check if a process is running | `GET /processes` |
 | `list_processes` | List running processes | `GET /processes` |
 | `list_windows` | List open windows | `GET /windows` |
@@ -62,20 +78,26 @@ are `readOnlyHint: false` and refuse to run unless the user opts in (see [Privac
 | `get_taskbar` | Show taskbar apps | `GET /taskbar` |
 | `read_window` | Read text from a window | `GET /window/text` |
 | `get_ui_tree` | Get a window's UI element tree | `GET /ui/tree` |
-| `ui_find` | Find interactive UI elements | `GET /ui/find` |
 | `wait_for` | Wait until a condition is met | `GET /wait` |
 | `get_recent_events` | List recent PC events | `GET /events/history` |
 | `check_file` | Check a file or folder | `GET /filesystem/watch` |
 | `get_app_knowledge` | Get learned recipes for an app | `GET /knowledge/app` |
 | `get_economy_stats` | Get token economy statistics | `GET /analytics/summary` |
 | `get_audit_log` | View API audit log | `GET /audit` |
+| `read_notes` | Read the local agent noticeboard | `GET /notes` |
 
-**Action tier — opt-in, off by default:**
+**UI tools — state first, then opt-in actions:**
 
 | Tool | Title | Endpoint |
 |---|---|---|
+| `ui_find` | Find interactive UI elements | `GET /ui/find` |
+| `ui_find_at` | Find the UI element under a screen pixel | `POST /ui/find_at` |
+| `ui_act` | Act by intent (decides UIA vs real input) | `POST /ui/act` |
 | `ui_invoke` | Click a UI element | `POST /ui/invoke` |
 | `ui_set_value` | Set the value of a UI field | `POST /ui/set_value` |
+| `ui_send_keys` | Type text with synthetic keystrokes (last resort) | `POST /ui/send_keys` |
+| `ui_drag` | Drag an element onto another | `POST /ui/drag` |
+| `ui_select_option` | Select an option in a dropdown | `POST /ui/select_option` |
 | `focus_window` | Bring a window to the foreground | `POST /ui/focus` |
 
 **Local telemetry (writes to the local store, metadata only):**
@@ -84,6 +106,12 @@ are `readOnlyHint: false` and refuse to run unless the user opts in (see [Privac
 |---|---|---|
 | `report_task_outcome` | Report task outcome (telemetry) | `POST /telemetry/task` |
 | `report_action_outcome` | Report UI action outcome (telemetry) | `POST /telemetry/action` |
+
+**Local agent coordination (stored only on this machine):**
+
+| Tool | Title | Endpoint |
+|---|---|---|
+| `post_note` | Post a note to the agent noticeboard | `POST /notes` |
 
 ### Reading deep UI trees (Chromium/Electron)
 
@@ -94,9 +122,48 @@ there (max 30) and cap cost with `max_nodes` (default 200, max 1000): **`max_nod
 brake, not `depth`.** When the response has `truncated: true`, the tree was cut — repeat with a
 higher `depth`/`max_nodes` before concluding anything about the window.
 
+### Acting: two families, and picking the wrong one is the classic failure
+
+This is the part agents get wrong by default, because every other computer-use tool they have
+ever seen needs the window in front. Here, most of them do not:
+
+**`ui_act` picks between the two families below for you — try it first for click / type / pick.**
+It attempts UI Automation and drops to real input by itself only when UIA reports the pattern is
+missing on that element (never for `intent=escolher`, where a physical click would trigger the
+element instead of picking an option inside it), and tells you which one ran in `mecanismo`
+(`uia`/`fisico`). It also refuses an ambiguous target with `409 alvo_ambiguo` and hands back the
+candidates with their `rect`, instead of silently taking the first name match the way the tools
+below do. Read on for what each family means and when to call one of them directly instead.
+
+| Family | Tools | Needs the window in the foreground? |
+|---|---|---|
+| **By element** (UI Automation) | `ui_invoke`, `ui_set_value`, `ui_select_option` | **No.** Works with the window *behind* others, unfocused, while the user keeps typing elsewhere. |
+| **By synthetic input** | `ui_send_keys`, `ui_drag` | **Yes.** Refuses with `janela_nao_esta_em_primeiro_plano` otherwise. |
+
+Why: the first family talks to the app's accessibility provider and ignores z-order; the second
+emits real keyboard/mouse events, which Windows delivers to whatever is in the foreground — not
+to the `hwnd` you passed.
+
+**Calling the families directly: start with by-element, every time.** Do not call `focus_window`
+"just in case" before it: that steals the user's foreground and buys nothing. Reach for `ui_send_keys` only
+after `ui_set_value` actually returned `valor_nao_aplicado` on that field (a `contenteditable`
+in a controlled framework), and for `ui_drag` only for what genuinely only moves by dragging —
+there is no UIA pattern for dragging.
+
+If `focus_window` itself fails with `foco_nao_aplicado`, do not loop on the second family: it
+cannot succeed without the foreground. `health_check` reports the real-input arm (ForgePilot)
+under `executor`/`forgepilot`, and warns when it is installed but stopped.
+
 ## Privacy
 
-**Nothing leaves the machine. There is no remote telemetry, no cloud service, and no account.**
+**No data about you leaves the machine. There is no remote telemetry, no cloud service, and no
+account.** There is exactly one outbound request, it carries nothing about you, and you can turn it
+off:
+
+> **Update check.** Once a day the engine asks GitHub's public Releases API whether a newer version
+> exists. The request goes to GitHub, not to us: no identifier, no telemetry, nothing about your machine
+> or your apps. It can be switched off in the tray menu, and when off no outbound request is made at all.
+> Everything else in AIPM remains local.
 
 ### Network
 - The backend listens on the **loopback interface only** (`127.0.0.1:9147`) — not on `0.0.0.0`,
@@ -108,11 +175,12 @@ higher `depth`/`max_nodes` before concluding anything about the window.
   a `User-Agent` of `mcp:<your MCP client name>` so the local audit log shows which agent asked.
 
 ### Read-only by default
-- 15 of the 20 tools are plain `GET` reads, annotated `readOnlyHint: true`.
-- The 3 action tools (`ui_invoke`, `ui_set_value`, `focus_window`) return `403 action_denied`
-  until the user does **both**: enable *Agent actions* in the tray menu, and add the target
-  process to a per-app allowlist. Neither is on by default, and the setting is per app —
-  allowing Notepad does not allow the browser.
+- The 15 perception tools plus `ui_find` are plain reads. `ui_find_at` is also semantically
+  read-only, but its pixel probe uses a guarded `POST`; all 17 carry `readOnlyHint: true`.
+- The 7 UI action tools (`ui_act`, `ui_invoke`, `ui_set_value`, `ui_send_keys`, `ui_drag`,
+  `ui_select_option`, `focus_window`) return `403 action_denied` until the user does **both**:
+  enable *Agent actions* in the tray menu and add the target process to a per-app allowlist.
+  Neither is on by default, and the setting is per app — allowing Notepad does not allow the browser.
 
 ### What the telemetry stores — metadata only
 Recorded: app/process name, element role (`Button`, `Edit`…), the element name **the agent
@@ -147,6 +215,7 @@ Everything is under `%LOCALAPPDATA%\AIProcessManager\`:
 | `db\*.jsonl`, `db\rollup.json` | telemetry: tasks, actions, queries, UI shapes, counters |
 | `ledger.jsonl` | tamper-evident hash-chained log of reported/executed actions (metadata only) |
 | `actions.cfg` | whether the action tier is on + the per-app allowlist |
+| `update.json` | update-check preference (on/off) and its cache: last check time, latest tag, dismissed tag |
 | `log.txt`, `endpoint.txt` | app log and the API address currently in use |
 
 To erase: quit the app from the tray, then delete the folder (or just `db\` to reset learning and
@@ -188,7 +257,7 @@ We publish what does **not** work yet on purpose — you should know the edges b
 - **Free & open (MIT):** this MCP server.
 - **Free (closed):** the `AIProcessManager.exe` backend — the sensor. Yours to run at no cost.
 - **Paid:** **AIPM Pilot**, the autonomous computer-use agent that drives apps end-to-end using AIPM's
-  structured perception. See [promoflix.site](https://promoflix.site).
+  structured perception.
 
 ## Support the project
 

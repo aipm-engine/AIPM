@@ -5,3 +5,11 @@ node_modules/
 *.dll
 *.pdb
 *.log
+# Backup de fonte NUNCA vai para o publico. Acrescentado em 18/09/2026:
+# o mcp/ de trabalho tinha 4 (.bak-antes-sonda, .pre-facade, .pre-parte1 x2)
+# e nenhum dos dois .gitignore os filtrava. Um `cp mcp/* repo/` publicaria os
+# quatro -- codigo de versoes anteriores, sem revisao, com cara de oficial.
+*.bak*
+*.pre-*
+*.orig
+*~
